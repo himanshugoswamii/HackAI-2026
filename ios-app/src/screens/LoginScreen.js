@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { COLORS, FONTS } from '../theme';
 
 export default function LoginScreen({ navigation }) {
     const [name, setName] = useState('');
@@ -18,7 +19,6 @@ export default function LoginScreen({ navigation }) {
     }, []);
 
     const handleLogin = async () => {
-        // Simple mock login validation
         if (name && email && age) {
             await AsyncStorage.setItem('userProfile', JSON.stringify({ name, email, age }));
             navigation.replace('Main');
@@ -32,19 +32,22 @@ export default function LoginScreen({ navigation }) {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.container}
         >
+            <Text style={styles.sparkle}>✨</Text>
             <Text style={styles.title}>Neural Threads</Text>
-            <Text style={styles.subtitle}>Your AI Personal Stylist</Text>
+            <Text style={styles.subtitle}>Your wardrobe, reimagined</Text>
             
             <View style={styles.form}>
                 <TextInput 
                     style={styles.input}
-                    placeholder="First Name"
+                    placeholder="Your Name"
+                    placeholderTextColor={COLORS.textLight}
                     value={name}
                     onChangeText={setName}
                 />
                 <TextInput 
                     style={styles.input}
                     placeholder="Email Address"
+                    placeholderTextColor={COLORS.textLight}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     value={email}
@@ -53,14 +56,17 @@ export default function LoginScreen({ navigation }) {
                 <TextInput 
                     style={styles.input}
                     placeholder="Age"
+                    placeholderTextColor={COLORS.textLight}
                     keyboardType="numeric"
                     value={age}
                     onChangeText={setAge}
                 />
-                <TouchableOpacity style={styles.button} onPress={handleLogin}>
-                    <Text style={styles.buttonText}>Create Profile & Login</Text>
+                <TouchableOpacity style={styles.button} onPress={handleLogin} activeOpacity={0.8}>
+                    <Text style={styles.buttonText}>Step Into Style</Text>
                 </TouchableOpacity>
             </View>
+
+            <Text style={styles.footer}>Miranda · Monica · Ralph await you</Text>
         </KeyboardAvoidingView>
     );
 }
@@ -69,50 +75,72 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         justifyContent: 'center',
-        padding: 20,
-        backgroundColor: '#F9FAFB',
+        padding: 30,
+        backgroundColor: COLORS.bg,
+    },
+    sparkle: {
+        fontSize: 40,
+        textAlign: 'center',
+        marginBottom: 12,
     },
     title: {
-        fontSize: 32,
-        fontWeight: 'bold',
+        fontSize: 38,
+        fontFamily: FONTS.cursive,
         textAlign: 'center',
-        color: '#111827',
-        marginBottom: 8,
+        color: COLORS.textDark,
+        marginBottom: 6,
     },
     subtitle: {
-        fontSize: 18,
+        fontSize: 16,
         textAlign: 'center',
-        color: '#6B7280',
+        color: COLORS.textMedium,
         marginBottom: 40,
+        letterSpacing: 1,
+        textTransform: 'uppercase',
     },
     form: {
-        backgroundColor: '#FFFFFF',
-        padding: 20,
-        borderRadius: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 15,
-        elevation: 2,
+        backgroundColor: COLORS.cardBg,
+        padding: 24,
+        borderRadius: 24,
+        shadowColor: COLORS.shadow,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+        elevation: 4,
     },
     input: {
-        backgroundColor: '#F3F4F6',
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        borderRadius: 10,
-        marginBottom: 16,
+        backgroundColor: COLORS.inputBg,
+        paddingHorizontal: 18,
+        paddingVertical: 16,
+        borderRadius: 16,
+        marginBottom: 14,
         fontSize: 16,
+        color: COLORS.textDark,
+        borderWidth: 1,
+        borderColor: COLORS.border,
     },
     button: {
-        backgroundColor: '#000000',
-        paddingVertical: 16,
-        borderRadius: 10,
+        backgroundColor: COLORS.gold,
+        paddingVertical: 18,
+        borderRadius: 16,
         alignItems: 'center',
-        marginTop: 8,
+        marginTop: 6,
+        shadowColor: COLORS.gold,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
     },
     buttonText: {
         color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 17,
+        fontWeight: '700',
+        letterSpacing: 0.5,
+    },
+    footer: {
+        textAlign: 'center',
+        color: COLORS.textLight,
+        fontSize: 13,
+        marginTop: 30,
+        letterSpacing: 0.5,
     }
 });

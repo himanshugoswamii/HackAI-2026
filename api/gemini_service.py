@@ -25,25 +25,31 @@ def _parse_safe(text: str) -> dict:
     if not text or not isinstance(text, str):
         raise ValueError("Gemini response could not be parsed as JSON")
     text = text.strip()
+    # Remove markdown code blocks (try first block only)
     if "```" in text:
         match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
         if match:
             text = match.group(1).strip()
+    # Find JSON object boundaries - take from first { to last }
     start = text.find("{")
     end = text.rfind("}") + 1
     if start >= 0 and end > start:
         text = text[start:end]
+    # Fix common issues: trailing comma before } or ]
     text = re.sub(r",\s*}", "}", text)
     text = re.sub(r",\s*]", "]", text)
+    # Try parsing
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
+    # Try with single quotes replaced (invalid JSON but some models do it)
     try:
         single = text.replace("'", '"')
         return json.loads(single)
     except json.JSONDecodeError:
         pass
+    # Last resort: try to extract key:"value" pairs
     out = {}
     for key in ("type", "color", "style", "season", "formality"):
         m = re.search(rf'"{key}"\s*:\s*"([^"]*)"', text, re.IGNORECASE)
@@ -63,7 +69,7 @@ def _parse_similar_indices_fallback(text: str) -> dict:
             if not part:
                 continue
             try:
-                n = int(float(part))
+                n = int(float(part))  # handle 2.0 from model
                 if n >= 1:
                     indices.append(n)
             except (ValueError, TypeError):
@@ -71,12 +77,18 @@ def _parse_similar_indices_fallback(text: str) -> dict:
         return indices
 
     out: dict = {}
-    match = re.search(r'"similar_indices"\s*:\s*\[([^\]]*)\]', text, re.IGNORECASE | re.DOTALL)
+    # "similar_indices" : [ ... ] or similar_indices: [2, 3]
+    match = re.search(
+        r'"similar_indices"\s*:\s*\[([^\]]*)\]',
+        text,
+        re.IGNORECASE | re.DOTALL,
+    )
     if not match:
         match = re.search(r"similar_indices\s*:\s*\[([^\]]*)\]", text, re.IGNORECASE | re.DOTALL)
     if match:
         out["similar_indices"] = parse_numbers(match.group(1))
         return out
+    # Some models return just [2, 3] or [2]
     match = re.search(r"\[\s*(\d[\d.,\s]*)\s*\]", text)
     if match:
         out["similar_indices"] = parse_numbers(match.group(1))
@@ -86,7 +98,7 @@ def _parse_similar_indices_fallback(text: str) -> dict:
 
 
 def _resize_image_bytes(data: bytes, mime_type: str) -> tuple[bytes, str]:
-    """Resize image to max _GEMINI_MAX_PX for optimal Gemini processing."""
+    """Resize image to max _GEMINI_MAX_PX so Gemini is fast. Returns (jpeg_bytes, 'image/jpeg')."""
     try:
         from PIL import Image
     except ImportError:
@@ -95,7 +107,7 @@ def _resize_image_bytes(data: bytes, mime_type: str) -> tuple[bytes, str]:
         img = Image.open(io.BytesIO(data))
         img = img.convert("RGB")
         w, h = img.size
-        # If already small enough and small file size, return as is
+        # Allow slightly larger file size for 1024px
         if w <= _GEMINI_MAX_PX and h <= _GEMINI_MAX_PX and len(data) < 150_000:
             img.close()
             return data, mime_type
@@ -115,12 +127,13 @@ def _resize_image_bytes(data: bytes, mime_type: str) -> tuple[bytes, str]:
 
 
 def _coerce_value(key: str, val: str | None, valid_set: set[str], default: str) -> str:
-    """Coerce value to valid set; return default if no match."""
+    """Coerce value to valid set; return default if invalid."""
     if not val or not isinstance(val, str):
         return default
     v = val.lower().strip()
     if v in valid_set:
         return v
+    # Fuzzy match: check if any valid option is contained
     for opt in valid_set:
         if opt in v or v in opt:
             return opt
@@ -129,8 +142,8 @@ def _coerce_value(key: str, val: str | None, valid_set: set[str], default: str) 
 
 def classify_clothing(image_path: str | Path) -> dict:
     """
-    Use Gemini 1.5 Pro to classify a clothing item with luxury-level precision.
-    Uses native JSON mode and high resolution.
+    Use Gemini Vision to classify a clothing item with high precision.
+    Returns JSON with: type, color, style, season, formality.
     """
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY environment variable is not set")
@@ -164,19 +177,20 @@ Classify the item into a JSON object using the following categories and allowed 
 - Input: Image of a flowy floral sundress
 - Output: {"type": "dress", "color": "floral", "style": "bohemian", "season": "summer", "formality": "casual"}
 
-Analyze the image carefully and return only the JSON."""
+Analyze the image carefully and return only the JSON. No explanation text."""
 
     model = genai.GenerativeModel(GEMINI_MODEL)
     
-    # Use native JSON mode for 100% reliable structure
+    # Not using response_mime_type yet as it seems flaky in some environments,
+    # relying on original robust _parse_safe instead.
     response = model.generate_content(
         [
             {"inline_data": {"mime_type": mime_type, "data": image_bytes}},
             prompt,
         ],
         generation_config={
-            "response_mime_type": "application/json",
-            "max_output_tokens": 256
+            "max_output_tokens": 512,
+            "temperature": 0.1
         },
     )
 
@@ -188,9 +202,10 @@ Analyze the image carefully and return only the JSON."""
         raise ValueError("Gemini returned empty text")
 
     try:
-        raw = json.loads(text)
-    except json.JSONDecodeError:
         raw = _parse_safe(text)
+    except ValueError:
+        # Parsing failed - return a safe default so upload still succeeds
+        raw = {}
 
     return {
         "type": _coerce_value("type", raw.get("type"), VALID_TYPES, "other"),
@@ -220,10 +235,13 @@ def find_similar_in_wardrobe(
         raise FileNotFoundError(f"Query image not found: {query_path}")
 
     uploads_dir = Path(uploads_dir)
+    # Build list of (wardrobe_item, path) for items that have a real image file
     valid: list[tuple[dict, Path]] = []
     for w in wardrobe_items:
         img_path = w.get("image_path")
-        if not img_path or not isinstance(img_path, str) or img_path.startswith("demo/"):
+        if not img_path or not isinstance(img_path, str):
+            continue
+        if img_path.startswith("demo/"):
             continue
         name = Path(img_path).name
         full = uploads_dir / name
@@ -236,7 +254,10 @@ def find_similar_in_wardrobe(
     if not valid:
         return [], "No items with photos to compare."
 
+    # Limit number of images sent to Gemini (query + up to max_wardrobe_images)
     valid = valid[:max_wardrobe_images]
+    parts = []
+
     mime_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}
 
     query_bytes = query_path.read_bytes()
@@ -244,45 +265,47 @@ def find_similar_in_wardrobe(
     q_mime = mime_map.get(q_ext, "image/jpeg")
     query_bytes, q_mime = _resize_image_bytes(query_bytes, q_mime)
 
-    content_parts = [{"inline_data": {"mime_type": q_mime, "data": query_bytes}}]
-    
     for _w, w_path in valid:
         w_bytes = w_path.read_bytes()
         w_ext = w_path.suffix.lower()
         w_mime = mime_map.get(w_ext, "image/jpeg")
         w_bytes, w_mime = _resize_image_bytes(w_bytes, w_mime)
-        content_parts.append({"inline_data": {"mime_type": w_mime, "data": w_bytes}})
+        parts.append({"inline_data": {"mime_type": w_mime, "data": w_bytes}})
 
-    max_idx = len(valid) + 1
-    prompt = f'Look at the {max_idx} images above. Image 1 is the item the user is considering. Images 2 to {max_idx} are items in their wardrobe. Which wardrobe images show the SAME or VERY SIMILAR item as image 1? Reply with ONLY a JSON object: {{"similar_indices": [2]}}'
+    n_wardrobe = len(valid)
+    max_idx = n_wardrobe + 1
+
+    prompt = """Look at the """ + str(max_idx) + """ images above. Image 1 is an item the user is considering. Images 2 to """ + str(max_idx) + """ are items in their wardrobe. Which wardrobe images show the SAME or VERY SIMILAR item as image 1? Reply with ONLY a JSON object: {"similar_indices": [2]}"""
+
+    # Content: [query image, wardrobe 1, wardrobe 2, ..., prompt] so Image 1 = query
+    content_parts = [{"inline_data": {"mime_type": q_mime, "data": query_bytes}}]
+    content_parts.extend(parts)
     content_parts.append(prompt)
 
-    safety_settings = [
-        {"category": HarmCategory.HARM_CATEGORY_HARASSMENT, "threshold": HarmBlockThreshold.BLOCK_NONE},
-        {"category": HarmCategory.HARM_CATEGORY_HATE_SPEECH, "threshold": HarmBlockThreshold.BLOCK_NONE},
-        {"category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, "threshold": HarmBlockThreshold.BLOCK_NONE},
-        {"category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, "threshold": HarmBlockThreshold.BLOCK_NONE},
-    ]
+    # Minimize blocking for clothing photos
+    safety_settings = [{"category": c, "threshold": HarmBlockThreshold.BLOCK_NONE} for c in [
+        HarmCategory.HARM_CATEGORY_HARASSMENT, HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT
+    ]]
 
     model = genai.GenerativeModel(GEMINI_MODEL, safety_settings=safety_settings)
     response = model.generate_content(
         content_parts,
-        generation_config={"response_mime_type": "application/json", "max_output_tokens": 256},
+        generation_config={"max_output_tokens": 256},
     )
-    
     text = ""
     if response.candidates and response.candidates[0].content.parts:
         text = (response.text or "").strip()
-    
     if not text:
         return [], None
-
     try:
-        raw = json.loads(text)
-    except json.JSONDecodeError:
+        raw = _parse_safe(text)
+    except ValueError:
         raw = _parse_similar_indices_fallback(text)
-        
-    indices_1based = raw.get("similar_indices", [])
+    indices_1based = raw.get("similar_indices") or []
+    if not isinstance(indices_1based, list):
+        indices_1based = []
+    
     result_ids = []
     seen = set()
     for idx in indices_1based:

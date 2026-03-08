@@ -37,10 +37,7 @@ export default function StylistScreen() {
 
     const handleSaveOutfit = async (outfit) => {
         try {
-            const itemImages = (outfit.items || []).map(label => {
-                const match = wardrobe.find(w => `${w.color} ${w.type}`.toLowerCase() === label.toLowerCase());
-                return { label, image_path: match ? match.image_path : null };
-            });
+            const itemImages = outfit.item_images || [];
             await api.post('/outfits/save', {
                 title: outfit.title || 'Saved Outfit', items: outfit.items || [],
                 reason: outfit.reason || '', item_images: itemImages
@@ -72,13 +69,12 @@ export default function StylistScreen() {
                             <Text style={styles.outfitTitle}>{outfit.title}</Text>
                             <Text style={styles.outfitReason}>{outfit.reason}</Text>
                             <View style={styles.itemsContainer}>
-                                {(outfit.items || []).map((label, i) => {
-                                    const match = wardrobe.find(w => `${w.color} ${w.type}`.toLowerCase() === label.toLowerCase());
-                                    const imgUrl = match?.image_path && (match.image_path.startsWith('http') ? match.image_path : `${BASE_URL}/${match.image_path}`);
+                                {(outfit.item_images || []).map((img, i) => {
+                                    const imgUrl = img.image_path && (img.image_path.startsWith('http') ? img.image_path : `${BASE_URL}/${img.image_path}`);
                                     return imgUrl ? (
-                                        <Image key={i} source={{ uri: imgUrl }} style={styles.itemImage} />
+                                        <Image key={i} source={{ uri: imgUrl }} style={styles.itemImage} resizeMode="cover" />
                                     ) : (
-                                        <View key={i} style={styles.placeholderImage}><Text style={styles.placeholderText}>{label}</Text></View>
+                                        <View key={i} style={styles.placeholderImage}><Text style={styles.placeholderText}>{img.label}</Text></View>
                                     );
                                 })}
                             </View>

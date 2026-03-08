@@ -1,4 +1,4 @@
-# Neural Threads 👗✨
+# Agent Stitch 👗🕵🏻‍♀️✨
 
 **AI-Powered Personal Fashion Assistant** — A mobile app built with React Native (Expo) that helps you manage your wardrobe, get AI outfit suggestions, declutter unused clothing, and chat with a fashion-savvy AI.
 

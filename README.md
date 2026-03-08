@@ -1,121 +1,169 @@
-# Neural Threads
+# Neural Threads 👗✨
 
-AI Personal Stylist — upload clothes, get outfit suggestions, and declutter with AI. **Web app only** (no mobile app).
+**AI-Powered Personal Fashion Assistant** — A mobile app built with React Native (Expo) that helps you manage your wardrobe, get AI outfit suggestions, declutter unused clothing, and chat with a fashion-savvy AI.
 
-## Architecture
+## 📱 Features
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     React (Vite) — web/                          │
-│  Wardrobe │ Stylist ("What should I wear?") │ Declutter │ Upload │ Do I need this?
-└───────────────────────────┬─────────────────────────────────────┘
-                            │ REST API (proxy in dev)
-┌───────────────────────────▼─────────────────────────────────────┐
-│                      FastAPI (api/)                              │
-│  /upload-clothing-image  │ /wardrobe/*  │ /stylist/*  │ /weather │
-└──┬──────────────────────┬──────────────────┬────────────────────┘
-   │  Gemini Vision        │  SQLite           │  Open-Meteo
-   │  (classify + similar) │  (wardrobe)       │  (season)
-   │  Gemini Text (Stylist + Declutter)
-   └──────────────────────┴──────────────────┘
-```
+### 👕 Smart Wardrobe
+- Upload clothing items via **camera** or **photo gallery**
+- AI-powered classification using **Google Gemini Vision** (auto-detects type, color, style, season, formality)
+- Grid view of your entire wardrobe with **delete** support
 
-- **Frontend**: React (Vite) in **web/** — website only, deployable as static build.
-- **Backend**: FastAPI in **api/** — upload, classify, wardrobe, stylist, declutter.
-- **AI**: Google Gemini (Vision + Text).
-- **DB**: SQLite.
+### ✨ AI Stylist — *Miranda*
+- Get personalized outfit recommendations based on your age, style preference, and current season
+- Optionally describe an inspiration look and Miranda will match it from your wardrobe
+- **Save** recommended outfits to your collection for future reference
+
+### 📦 Declutter Agent — *Monica*
+- Instantly identifies items you haven't worn recently
+- Suggests your top 5 candidates for donation — no waiting, no loading
+
+### 👗 Saved Outfits
+- Browse all your saved outfit combinations
+- Each outfit shows a **timestamp** so you know when you last saved it
+- View item thumbnails for every recommendation
+
+### 💬 Fashion Chatbot — *Ralph*
+- Ask any fashion question and get AI-powered advice
+- **Attach a photo** of a clothing item and ask *"What can I pair with this?"*
+- Ralph uses your wardrobe data to give context-aware suggestions
 
 ---
 
-## How to run locally
+## 🏗️ Architecture
 
-**Option A – One command:** From project root run `./run.sh` (frees ports 8000/5173, starts API + web). Open http://localhost:5173. Ctrl+C stops both.
+```
+┌──────────────────────────────────────────────────────┐
+│              React Native (Expo) — ios-app/           │
+│  Wardrobe │ Stylist │ Declutter │ Outfits │ Chatbot  │
+└─────────────────────────┬────────────────────────────┘
+                          │ REST API (via localtunnel)
+┌─────────────────────────▼────────────────────────────┐
+│                   FastAPI — api/                      │
+│  /upload  │ /wardrobe/*  │ /stylist/*  │ /chatbot/*  │
+└──┬────────────────┬──────────────┬───────────────────┘
+   │ Gemini Vision   │ SQLite       │ Open-Meteo
+   │ Gemini Text     │ (wardrobe)   │ (season)
+   └─────────────────┴──────────────┘
+```
 
-**Option B – Two terminals:**
+- **Mobile App**: React Native + Expo in `ios-app/`
+- **Backend**: FastAPI in `api/`
+- **AI**: Google Gemini 2.5 Flash (Vision + Text)
+- **Database**: SQLite
 
-**1. Start the API (port 8000)**
+---
+
+## 🚀 How to Run
+
+### 1. Start the API Server
 
 ```bash
 cd api
 python3 -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
 
-# Required for classification + AI
-export GEMINI_API_KEY=your_key   # or put in api/.env
+# Set your Gemini API key
+export GEMINI_API_KEY=your_key   # or add to api/.env
 
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-**2. Start the web app (port 5173)**
+### 2. Expose the API via Tunnel (for mobile device access)
 
 ```bash
-cd web
+npx localtunnel --port 8000
+```
+
+Copy the tunnel URL and update `ios-app/src/api.js`:
+```javascript
+export const BASE_URL = 'https://your-tunnel-url.loca.lt';
+```
+
+### 3. Start the Mobile App
+
+```bash
+cd ios-app
 npm install
-npm run dev
+npx expo start --tunnel
 ```
 
-Open **http://localhost:5173**. The dev server proxies API requests to `http://localhost:8000`, so the wardrobe, upload, stylist, declutter, and “Do I need this?” flows all work against your local API.
+Scan the **QR code** with your iPhone camera (Expo Go) or Android.
 
 ---
 
-## Deploy as a website
-
-- **Backend**: Deploy **api/** to any host that runs Python (e.g. DigitalOcean App Platform, Railway, Render). Set `GEMINI_API_KEY`. See `api/DEPLOY.md`.
-- **Frontend**: Build the web app and host the static files:
-  ```bash
-  cd web
-  npm run build
-  ```
-  Upload the **web/dist** folder to Vercel, Netlify, or any static host. Set the env var **VITE_API_BASE** to your deployed API URL (e.g. `https://your-api.ondigitalocean.app`) so the site calls your API in production.
-
----
-
-## Troubleshooting
-
-**"Request timed out" / upload or wardrobe not working**
-
-1. **Start the API first.** In a terminal: `cd api && ./venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000`
-2. **Check it’s running:** Open **http://localhost:8000** in the browser. You must see JSON like `{"app": "Neural Threads API (api/)", ...}`. If you don’t, the API isn’t running — nothing will work until it is.
-3. **Then** start the web app: `cd web && npm run dev` and use **http://localhost:5173**.
-
-**Wardrobe / upload / 404 / timeouts**  
-The web app calls **http://localhost:8000** directly. If the API isn’t running on port 8000, you’ll get timeouts or connection errors. Only **api/** should run on 8000 (not **backend/**).
-
-**GEMINI_API_KEY**  
-Put your key in **api/.env**: one line, `GEMINI_API_KEY=your_key` (no quotes). Restart the API after changing.
-
----
-
-## Project structure
+## 📁 Project Structure
 
 ```
-api/              # FastAPI backend (port 8000)
-  main.py, gemini_service.py, stylist_agent.py, declutter_agent.py
-  database.py, weather_service.py
+ios-app/                  # React Native (Expo) mobile app
+  App.js                  # Tab navigator with emoji icons
+  src/
+    api.js                # Axios client (points to localtunnel)
+    screens/
+      LoginScreen.js      # Auth with AsyncStorage persistence
+      WardrobeScreen.js   # Grid view + upload + delete
+      StylistScreen.js    # Miranda — AI outfit suggestions
+      DeclutterScreen.js  # Monica — donation suggestions
+      OutfitsScreen.js    # Saved outfits with timestamps
+      ChatbotScreen.js    # Ralph — AI chatbot with image support
 
-web/              # React (Vite) website — use this
-  src/pages/      # Welcome, Wardrobe, Upload, Stylist, Declutter, Do I need this?
-  src/api.ts      # API client
+api/                      # FastAPI backend
+  main.py                 # All REST endpoints
+  chatbot_agent.py        # Gemini multimodal chatbot
+  stylist_agent.py        # Outfit recommendation engine
+  gemini_service.py       # Gemini Vision classification
+  database.py             # SQLite models (Wardrobe, SavedOutfit)
+  weather_service.py      # Open-Meteo season detection
+  config.py               # Environment config
 
-frontend/         # (Deprecated) Old Expo app — not used for web deploy
+web/                      # React (Vite) web app (legacy)
 ```
 
 ---
 
-## Endpoints (api/)
+## 🔌 API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Health check |
-| `/upload-clothing-image` | POST | Upload + classify clothing |
-| `/wardrobe/list` | GET | List wardrobe |
-| `/wardrobe/add` | POST | Add item |
-| `/wardrobe/seed` | POST | Seed demo wardrobe |
-| `/wardrobe/delete` | POST | Delete item |
-| `/wardrobe/declutter-suggestions` | GET | Items to donate |
-| `/wardrobe/similar-check` | POST | “Do I need this?” similar check |
-| `/stylist/suggest-outfits` | POST | Outfit suggestions |
+| `/upload-clothing-image` | POST | Upload + AI classify clothing |
+| `/wardrobe/list` | GET | List all wardrobe items |
+| `/wardrobe/add` | POST | Add classified item |
+| `/wardrobe/delete` | POST | Delete wardrobe item |
+| `/wardrobe/declutter-suggestions` | GET | Top 5 unworn items |
+| `/stylist/suggest-outfits` | POST | AI outfit recommendations |
+| `/outfits/save` | POST | Save an outfit |
+| `/outfits/list` | GET | List saved outfits |
+| `/chatbot/chat` | POST | Fashion chatbot (text + image) |
 | `/weather/season` | GET | Current season |
+
+---
+
+## 🔑 Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | ✅ | Google Gemini API key |
+| `GEMINI_MODEL` | ❌ | Model name (default: `gemini-2.5-flash`) |
+
+Place in `api/.env`:
+```
+GEMINI_API_KEY=your_key_here
+```
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Mobile App | React Native, Expo, React Navigation |
+| Backend | Python, FastAPI, SQLAlchemy, SQLite |
+| AI | Google Gemini 2.5 Flash (Vision + Text) |
+| Image Handling | expo-image-picker, Pillow |
+| Storage | AsyncStorage (client), SQLite (server) |
+| Tunnel | localtunnel (dev) |
+
+---
 
 See [PITCH.md](PITCH.md) for the hackathon pitch.

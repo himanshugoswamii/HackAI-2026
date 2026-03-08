@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Using localtunnel to bypass strict Wi-Fi isolation
-export const BASE_URL = 'https://stupid-pillows-exist.loca.lt';
+export const BASE_URL = 'https://smart-keys-design.loca.lt';
 
 const api = axios.create({
     baseURL: BASE_URL,

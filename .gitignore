@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+ios-app/node_modules/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+
+# Expo
+.expo/
+
+# Database (local dev)
+*.db
+
+# Uploads (user-generated)
+api/uploads/
+
+# IDE
+.vscode/
+.idea/

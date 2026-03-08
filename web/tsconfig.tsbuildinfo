@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/theme.ts","./src/vite-env.d.ts","./src/contexts/usercontext.tsx","./src/pages/appinfopage.tsx","./src/pages/declutterpage.tsx","./src/pages/doineedthispage.tsx","./src/pages/stylistpage.tsx","./src/pages/uploadpage.tsx","./src/pages/wardrobepage.tsx","./src/pages/welcomepage.tsx"],"version":"5.6.3"}

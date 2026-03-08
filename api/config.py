@@ -18,7 +18,7 @@ load_dotenv()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
 # Model: set via GEMINI_MODEL in .env. gemini-2.5-pro = best quality (use with billing).
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-pro").strip() or "gemini-1.5-pro"
 
 # Sanity check: warn if key not loaded (helps debug)
 if not GEMINI_API_KEY:
